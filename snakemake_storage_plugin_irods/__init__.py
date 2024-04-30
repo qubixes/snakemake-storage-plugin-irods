@@ -5,17 +5,20 @@ import os
 from pathlib import PosixPath
 from typing import Any, Iterable, Optional, List
 from urllib.parse import urlparse
+import re
 
-from irods import password_obfuscation
-from irods.session import iRODSSession
-from irods.models import DataObject
-from irods.exception import (
-    CollectionDoesNotExist,
-    DataObjectDoesNotExist,
-    CAT_NO_ACCESS_PERMISSION,
-    CAT_NAME_EXISTS_AS_DATAOBJ,
-)
-import irods.keywords as kw
+# from irods.session import iRODSSession
+# from irods.models import DataObject
+# from irods.exception import (
+#     CollectionDoesNotExist,
+#     DataObjectDoesNotExist,
+#     CAT_NO_ACCESS_PERMISSION,
+#     CAT_NAME_EXISTS_AS_DATAOBJ,
+# )
+# import irods.keywords as kw
+
+from ibridges.interactive import interactive_auth
+from ibridges import IrodsPath, get_dataobject, get_collection, download, upload
 
 from snakemake_interface_storage_plugins.settings import StorageProviderSettingsBase
 from snakemake_interface_storage_plugins.storage_provider import (  # noqa: F401
@@ -43,167 +46,81 @@ pswd_msg = (
 
 @dataclass
 class StorageProviderSettings(StorageProviderSettingsBase):
-    host: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": f"The host name of the iRODS server. {env_msg}",
-            "env_var": False,
-            "required": True,
-        },
-    )
-    port: Optional[int] = field(
-        default=None,
-        metadata={
-            "help": f"The port of the iRODS server. {env_msg}",
-            "env_var": False,
-            "required": True,
-        },
-    )
-    username: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": f"The user name for the iRODS server. {env_msg}",
-            "env_var": True,
-            "required": True,
-        },
-    )
-    password: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": f"The password for the iRODS server. {env_msg} {pswd_msg}",
-            "env_var": True,
-            "required": False,
-        },
-    )
-    zone: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": f"The zone for the iRODS server. {env_msg}",
-            "env_var": False,
-            "required": True,
-        },
-    )
-    home: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": f"The home parameter for the iRODS server. {env_msg}",
-            "env_var": False,
-            "required": True,
-        },
-    )
-    authentication_scheme: str = field(
-        default="native",
-        metadata={
-            "help": "The authentication scheme for the iRODS server. "
-            + f"{env_msg} {pswd_msg}",
-            "env_var": False,
-            "required": True,
-        },
-    )
-    encryption_algorithm: str = field(
-        default="AES-256-CBC",
-        metadata={
-            "help": f"Encryption algorithm for parallel transfer encryption. {env_msg}",
-            "env_var": False,
-            "required": False,
-        },
-    )
-    encryption_key_size: int = field(
-        default=32,
-        metadata={
-            "help": f"Key size for parallel transfer encryption. {env_msg}",
-            "env_var": False,
-            "required": False,
-        },
-    )
-    encryption_num_hash_rounds: int = field(
-        default=16,
-        metadata={
-            "help": "Number of hash rounds for parallel transfer "
-            + f"encryption. {env_msg}",
-            "env_var": False,
-            "required": False,
-        },
-    )
-    encryption_salt_size: int = field(
-        default=8,
-        metadata={
-            "help": f"Salt size for parallel transfer encryption. {env_msg}",
-            "env_var": False,
-            "required": False,
-        },
-    )
-    client_server_negotiation: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": f"Set to 'request_server_negotiation' to enable SSL/TLS. {env_msg}",
-            "env_var": False,
-            "required": False,
-        },
-    )
-    client_server_policy: str = field(
-        default="CS_NEG_REFUSE",
-        metadata={
-            "help": "CS_NEG_REFUSE: no SSL/TLS, CS_NEG_REQUIRE: enforce SSL/TLS, "
-            + f"CS_NEG_DONT_CARE: let server decide. {env_msg}",
-            "env_var": False,
-            "required": False,
-        },
-    )
-    ssl_verify_server: str = field(
-        default="hostname",
-        metadata={
-            "help": "none: do not verify certificate, cert: verify certificate"
-            + " validity (but not hostname), "
-            + f"hostname: verify certificate validity and hostname. {env_msg}",
-            "env_var": False,
-            "required": False,
-        },
-    )
-    ssl_ca_certificate_file: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "Path to file with trusted CA certificates in PEM format. "
-            + "Used in conjunction with system default trusted certificates."
-            + f" {env_msg}",
-            "env_var": False,
-            "required": False,
-        },
-    )
-    use_ssl: bool = field(
-        default=False,
-        metadata={
-            "help": "Whether to use SSL when connecting to the server.",
-            "env_var": False,
-            "required": False,
-        },
-    )
+    pass
+    # host: Optional[str] = field(
+    #     default=None,
+    #     metadata={
+    #         "help": f"The host name of the iRODS server. {env_msg}",
+    #         "env_var": False,
+    #         "required": True,
+    #     },
+    # )
+    # port: Optional[int] = field(
+    #     default=None,
+    #     metadata={
+    #         "help": f"The port of the iRODS server. {env_msg}",
+    #         "env_var": False,
+    #         "required": True,
+    #     },
+    # )
+    # username: Optional[str] = field(
+    #     default=None,
+    #     metadata={
+    #         "help": f"The user name for the iRODS server. {env_msg}",
+    #         "env_var": True,
+    #         "required": True,
+    #     },
+    # )
+    # password: Optional[str] = field(
+    #     default=None,
+    #     metadata={
+    #         "help": f"The password for the iRODS server. {env_msg}",
+    #         "env_var": True,
+    #         "required": True,
+    #     },
+    # )
+    # zone: Optional[str] = field(
+    #     default=None,
+    #     metadata={
+    #         "help": f"The zone for the iRODS server. {env_msg}",
+    #         "env_var": False,
+    #         "required": True,
+    #     },
+    # )
+    # home: Optional[str] = field(
+    #     default=None,
+    #     metadata={
+    #         "help": f"The home parameter for the iRODS server. {env_msg}",
+    #         "env_var": False,
+    #         "required": True,
+    #     },
+    # )
+    # authentication_scheme: str = field(
+    #     default="native",
+    #     metadata={
+    #         "help": f"The authentication scheme for the iRODS server. {env_msg}",
+    #         "env_var": False,
+    #         "required": True,
+    #     },
+    # )
 
-    def __post_init__(self):
-        env_file = PosixPath(os.path.expanduser("~/.irods/irods_environment.json"))
-        if env_file.exists():
-            with open(env_file) as f:
-                env = json.load(f)
+    # def __post_init__(self):
+    #     env_file = PosixPath(os.path.expanduser("~/.irods/irods_environment.json"))
+    #     if env_file.exists():
+    #         with open(env_file) as f:
+    #             env = json.load(f)
 
-            def retrieve(src, trgt):
-                if src in env:
-                    setattr(self, trgt, env[src])
+    #         def retrieve(src, trgt):
+    #             if getattr(self, trgt) is None:
+    #                 setattr(self, trgt, env[src])
 
-            retrieve("irods_host", "host")
-            retrieve("irods_port", "port")
-            retrieve("irods_user_name", "username")
-            retrieve("irods_password", "password")
-            retrieve("irods_zone_name", "zone")
-            retrieve("irods_authentication_scheme", "authentication_scheme")
-            retrieve("irods_home", "home")
-            retrieve("irods_encryption_algorithm", "encryption_algorithm")
-            retrieve("irods_encryption_key_size", "encryption_key_size")
-            retrieve("irods_encryption_num_hash_rounds", "encryption_num_hash_rounds")
-            retrieve("irods_encryption_salt_size", "encryption_salt_size")
-            retrieve("irods_client_server_negotiation", "client_server_negotiation")
-            retrieve("irods_client_server_policy", "client_server_policy")
-            retrieve("irods_ssl_verify_server", "ssl_verify_server")
-            retrieve("irods_ssl_ca_certificate_file", "ssl_ca_certificate_file")
+    #         retrieve("irods_host", "host")
+    #         retrieve("irods_port", "port")
+    #         retrieve("irods_user_name", "username")
+    #         retrieve("irods_password", "password")
+    #         retrieve("irods_zone_name", "zone")
+    #         retrieve("irods_authentication_scheme", "authentication_scheme")
+    #         retrieve("irods_home", "home")
 
 
 utc = datetime.datetime.fromtimestamp(0, datetime.timezone.utc)
@@ -223,45 +140,15 @@ class StorageProvider(StorageProviderBase):
         # This is optional and can be removed if not needed.
         # Alternatively, you can e.g. prepare a connection to your storage backend here.
         # and set additional attributes.
-        if self.settings.use_ssl:
-            ssl_settings = {
-                "client_server_negotiation": self.settings.client_server_negotiation,
-                "client_server_policy": self.settings.client_server_policy,
-                "encryption_algorithm": self.settings.encryption_algorithm,
-                "encryption_key_size": self.settings.encryption_key_size,
-                "encryption_num_hash_rounds": self.settings.encryption_num_hash_rounds,
-                "encryption_salt_size": self.settings.encryption_salt_size,
-                "ssl_verify_server": self.settings.ssl_verify_server,
-                "ssl_ca_certificate_file": self.settings.ssl_ca_certificate_file,
-            }
-        else:
-            ssl_settings = {}
-
-        if self.settings.password is None:
-            irodsA = os.path.expanduser("~/.irods/.irodsA")
-            try:
-                with open(irodsA, "r") as r:
-                    scrambled_password = r.read()
-                    password = password_obfuscation.decode(scrambled_password)
-                    authentication_scheme = "native"
-            except OSError as err:
-                raise Exception(
-                    "Error: could not retrieve irods_password from"
-                    + " settings or ~/.irods/.irodsA file."
-                ) from err
-        else:
-            password = self.settings.password
-            authentication_scheme = self.settings.authentication_scheme
-
-        self.session = iRODSSession(
-            host=self.settings.host,
-            port=self.settings.port,
-            user=self.settings.username,
-            password=password,
-            zone=self.settings.zone,
-            authentication_scheme=authentication_scheme,
-            **ssl_settings,
-        )
+        self.session = interactive_auth()
+        # self.session = iRODSSession(
+        #     host=self.settings.host,
+        #     port=self.settings.port,
+        #     user=self.settings.username,
+        #     password=self.settings.password,
+        #     zone=self.settings.zone,
+        #     authentication_scheme=self.settings.authentication_scheme,
+        # )
 
     @classmethod
     def example_queries(cls) -> List[ExampleQuery]:
@@ -286,11 +173,11 @@ class StorageProvider(StorageProviderBase):
     def default_max_requests_per_second(self) -> float:
         """Return the default maximum number of requests per second for this storage
         provider."""
-        return 10.0
+        return 100.0
 
     def use_rate_limiter(self) -> bool:
         """Return False if no rate limiting is needed for this provider."""
-        return True
+        return False
 
     @classmethod
     def is_valid_query(cls, query: str) -> StorageQueryValidationResult:
@@ -325,9 +212,14 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
         # Alternatively, you can e.g. prepare a connection to your storage backend here.
         # and set additional attributes.
         self.parsed_query = urlparse(self.query)
-        self.path = PosixPath(
-            f"/{self.parsed_query.netloc}"
-        ) / self.parsed_query.path.lstrip("/")
+        if self.parsed_query.netloc == "~":
+            self.path = IrodsPath(self.provider.session, self.parsed_query.netloc,
+                                  self.parsed_query.path.lstrip("/"))
+        else:
+            self.path = IrodsPath(self.provider.session, self.query[7:])
+        # self.path = PosixPath(
+        #     f"/{self.parsed_query.netloc}"
+        # ) / self.parsed_query.path.lstrip("/")
 
     async def inventory(self, cache: IOCacheStorageInterface):
         """From this file, try to find as much existence and modification date
@@ -349,7 +241,7 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
 
     def local_suffix(self) -> str:
         """Return a unique suffix for the local path, determined from self.query."""
-        return str(self.path).lstrip("/")
+        return self.path.absolute_path().lstrip("/")
 
     def cleanup(self):
         """Perform local cleanup of any remainders of the storage object."""
@@ -364,84 +256,87 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
     def exists(self) -> bool:
         # TODO does this also work for collections?
         # return True if the object exists
-        try:
-            self._data_obj()
-            return True
-        except (CollectionDoesNotExist, DataObjectDoesNotExist):
-            return False
+        return self.path.collection_exists() or self.path.dataobject_exists()
 
-    def _data_obj(self):
-        return self.provider.session.data_objects.get(str(self.path))
+    # def _data_obj(self):
+        # return 
+        # return self.provider.session.data_objects.get(str(self.path))
 
     @retry_decorator
     def mtime(self) -> float:
         # TODO does this also work for collections (i.e. directories)?
         # return the modification time
-        meta = self.provider.session.metadata.get(DataObject, str(self.path))
-        for m in meta:
-            if m.name == "mtime":
-                return float(m.value)
+        # meta = self.provider.session.metadata.get(DataObject, str(self.path))
+        # for m in meta:
+        #     if m.name == "mtime":
+        #         return float(m.value)
         # TODO is this conversion needed? Unix timestamp is always UTC, right?
         # dt = self._convert_time(self._data_obj().modify_time, timezone)
-        return self._data_obj().modify_time.timestamp()
+        if self.path.dataobject_exists():
+            return get_dataobject(self.provider.session, self.path).modify_time.timestamp()
+        return get_collection(self.provider.session, self.path).modify_time.timestamp()
+        # return self._data_obj().modify_time.timestamp()
 
     @retry_decorator
     def size(self) -> int:
         # return the size in bytes
-        return self._data_obj().size
+        return get_dataobject(self.provider.session, self.path).size
 
     @retry_decorator
     def retrieve_object(self):
+        download(self.provider.session, self.path, self.local_path())
         # Ensure that the object is accessible locally under self.local_path()
-        opts = {kw.FORCE_FLAG_KW: ""}
-        try:
-            # is directory
-            collection = self.provider.session.collections.get(str(self.path))
-            for _, _, objs in collection.walk():
-                for obj in objs:
-                    self.provoder.session.data_objects.get(
-                        obj.path, str(self.local_path() / obj.path), options=opts
-                    )
-        except CollectionDoesNotExist:
-            # is file
-            self.provider.session.data_objects.get(
-                str(self.path), str(self.local_path()), options=opts
-            )
+        # opts = {kw.FORCE_FLAG_KW: ""}
+        # try:
+        #     # is directory
+        #     collection = self.provider.session.collections.get(str(self.path))
+        #     for _, _, objs in collection.walk():
+        #         for obj in objs:
+        #             self.provider.session.data_objects.get(
+        #                 obj.path, str(self.local_path() / obj.path), options=opts
+        #             )
+        # except CollectionDoesNotExist:
+        #     # is file
+        #     self.provider.session.data_objects.get(
+        #         str(self.path), str(self.local_path()), options=opts
+        #     )
 
     # The following to methods are only required if the class inherits from
     # StorageObjectReadWrite.
 
     @retry_decorator
     def store_object(self):
+        upload(self.provider.session, self.local_path(), self.path, overwrite=True)
         # Ensure that the object is stored at the location specified by
         # self.local_path().
-        def mkdir(path):
-            try:
-                self.provider.session.collections.get(path)
-            except CAT_NO_ACCESS_PERMISSION:
-                pass
-            except CollectionDoesNotExist:
-                self.provider.session.collections.create(path)
+        # def mkdir(path):
+        #     try:
+        #         self.provider.session.collections.get(path)
+        #     except CAT_NO_ACCESS_PERMISSION:
+        #         pass
+        #     except CollectionDoesNotExist:
+        #         self.provider.session.collections.create(path)
 
-        for parent in self.path.parents[:-2][::-1]:
-            mkdir(str(parent))
+        # for parent in self.path.parents[:-2][::-1]:
+        #     mkdir(str(parent))
 
-        if self.local_path().is_dir():
-            mkdir(str(self.path))
-            for f in self.local_path().iterdir():
-                self.provider.session.data_objects.put(str(f), str(self.path / f.name))
-        else:
-            self.provider.session.data_objects.put(
-                str(self.local_path()), str(self.path)
-            )
+        # if self.local_path().is_dir():
+        #     mkdir(str(self.path))
+        #     for f in self.local_path().iterdir():
+        #         self.provider.session.data_objects.put(str(f), str(self.path / f.name))
+        # else:
+        #     self.provider.session.data_objects.put(
+        #         str(self.local_path()), str(self.path)
+        #     )
 
     @retry_decorator
     def remove(self):
         # Remove the object from the storage.
-        try:
-            self.provider.session.collections.unregister(str(self.path))
-        except CAT_NAME_EXISTS_AS_DATAOBJ:
-            self.provider.session.data_objects.unregister(str(self.path))
+        self.path.remove()
+        # try:
+        #     self.provider.session.collections.unregister(str(self.path))
+        # except CAT_NAME_EXISTS_AS_DATAOBJ:
+        #     self.provider.session.data_objects.unregister(str(self.path))
 
     # The following to methods are only required if the class inherits from
     # StorageObjectGlob.
@@ -453,10 +348,84 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
         # The method has to return concretized queries without any remaining wildcards.
         # Use snakemake_executor_plugins.io.get_constant_prefix(self.query) to get the
         # prefix of the query before the first wildcard.
-        ...
-
+        return _find_matches(IrodsPath(self.provider.session, self.path),
+                             self.path._path.parts)
+        # cur_ipath = IrodsPath(self.provider.session, "/")
+        # for part in self.path._path.parts:
+            # if re.match(r".*{.+}.*", part) is None:
+                # cur_ipath.joinpath(part)
+                # continue
+            
+            
     def _convert_time(self, timestamp, tz=None):
         dt = timestamp.replace(tzinfo=datetime.timezone("UTC"))
         if tz:
             dt = dt.astimezone(datetime.timezone(tz))
         return dt
+
+
+def _next_wildcard(input_str: str) -> tuple[str, Optional[str]]:
+    next_index = input_str.find("{")
+    if next_index == -1:
+        return input_str, None
+    if next_index < len(input_str)-1 and input_str[next_index+1] == "{":
+        new_input_str, remaining_str = _next_wildcard(input_str[next_index+2:])
+        return input_str[:next_index+2] + new_input_str, remaining_str
+    last_index = input_str.find("}")
+    if last_index == -1:
+        raise ValueError(f"Bracket not closed properly in: {input_str}")
+    return input_str[:next_index], input_str[last_index+1:]
+        
+
+def _find_matches(ipath: IrodsPath, remaining_parts: list[str]):# -> list[str]:
+    if len(remaining_parts) == 0:
+        if ipath.exists():
+            return [str(ipath)]
+        return []
+
+
+    part = remaining_parts[0]
+    new_ipath = ipath / part
+    if re.match(r".*{.+}.*", part) is None:
+        return _find_matches(new_ipath, remaining_parts[1:])
+
+    if ipath.dataobject_exists() or not ipath.collection_exists():
+        return []
+
+    coll = get_collection(ipath.session, ipath)
+    possible_matches = {
+        sub.name: sub for sub in coll.data_objects
+    }
+    possible_matches.update({
+        sub.name: sub for sub in coll.subcollections
+    })
+    regex = r"^"
+    cur_part = part
+    while True:
+        before_wc, after_wc = _next_wildcard(cur_part)
+        regex += before_wc
+        if after_wc is None:
+            break
+        regex += r"[\S\s]+"
+        cur_part = after_wc
+    regex += "$"
+    matched_names = [name for name in possible_matches
+                     if re.match(regex, name) is not None]
+
+    found_matches = []
+    for name in matched_names:
+        found_matches.extend(_find_matches(ipath/name, remaining_parts[1:]))
+    return found_matches
+    # return [
+            # for name ]
+        
+    # print(regex)
+        # for name, item in possible_matches.items():
+            
+        # possible_matches = {name: item for name, item in possible_matches.items()
+                            # if name.startswith(before_wc)}
+        
+    
+
+    # else:
+        # if 
