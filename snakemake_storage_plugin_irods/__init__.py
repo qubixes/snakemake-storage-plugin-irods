@@ -168,7 +168,7 @@ class StorageProvider(StorageProviderBase):
         E.g. for a storage provider like http that would be the host name.
         For s3 it might be just the endpoint URL.
         """
-        return self.settings.host
+        return self.session.host
 
     def default_max_requests_per_second(self) -> float:
         """Return the default maximum number of requests per second for this storage
@@ -177,7 +177,7 @@ class StorageProvider(StorageProviderBase):
 
     def use_rate_limiter(self) -> bool:
         """Return False if no rate limiting is needed for this provider."""
-        return False
+        return True
 
     @classmethod
     def is_valid_query(cls, query: str) -> StorageQueryValidationResult:
