@@ -1,24 +1,12 @@
 from dataclasses import dataclass, field
 import datetime
-import json
-import os
-from pathlib import PosixPath
 from typing import Any, Iterable, Optional, List
 from urllib.parse import urlparse
 import re
 
-# from irods.session import iRODSSession
-# from irods.models import DataObject
-# from irods.exception import (
-#     CollectionDoesNotExist,
-#     DataObjectDoesNotExist,
-#     CAT_NO_ACCESS_PERMISSION,
-#     CAT_NAME_EXISTS_AS_DATAOBJ,
-# )
-# import irods.keywords as kw
 
 from ibridges.interactive import interactive_auth
-from ibridges import IrodsPath, get_dataobject, get_collection, download, upload
+from ibridges import IrodsPath, download, upload
 
 from snakemake_interface_storage_plugins.settings import StorageProviderSettingsBase
 from snakemake_interface_storage_plugins.storage_provider import (  # noqa: F401
@@ -71,14 +59,14 @@ class StorageProviderSettings(StorageProviderSettingsBase):
     #         "required": True,
     #     },
     # )
-    # password: Optional[str] = field(
-    #     default=None,
-    #     metadata={
-    #         "help": f"The password for the iRODS server. {env_msg}",
-    #         "env_var": True,
-    #         "required": True,
-    #     },
-    # )
+    password: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": f"The password for the iRODS server. {env_msg}",
+            "env_var": True,
+            "required": False,
+        },
+    )
     # zone: Optional[str] = field(
     #     default=None,
     #     metadata={
@@ -140,15 +128,7 @@ class StorageProvider(StorageProviderBase):
         # This is optional and can be removed if not needed.
         # Alternatively, you can e.g. prepare a connection to your storage backend here.
         # and set additional attributes.
-        self.session = interactive_auth()
-        # self.session = iRODSSession(
-        #     host=self.settings.host,
-        #     port=self.settings.port,
-        #     user=self.settings.username,
-        #     password=self.settings.password,
-        #     zone=self.settings.zone,
-        #     authentication_scheme=self.settings.authentication_scheme,
-        # )
+        self.session = interactive_auth(password=self.settings.password)
 
     @classmethod
     def example_queries(cls) -> List[ExampleQuery]:
@@ -241,7 +221,7 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
 
     def local_suffix(self) -> str:
         """Return a unique suffix for the local path, determined from self.query."""
-        return self.path.absolute_path().lstrip("/")
+        return str(self.path.absolute()).lstrip("/")
 
     def cleanup(self):
         """Perform local cleanup of any remainders of the storage object."""
@@ -256,7 +236,7 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
     def exists(self) -> bool:
         # TODO does this also work for collections?
         # return True if the object exists
-        return self.path.collection_exists() or self.path.dataobject_exists()
+        return self.path.exists()
 
     # def _data_obj(self):
         # return 
@@ -273,33 +253,17 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
         # TODO is this conversion needed? Unix timestamp is always UTC, right?
         # dt = self._convert_time(self._data_obj().modify_time, timezone)
         if self.path.dataobject_exists():
-            return get_dataobject(self.provider.session, self.path).modify_time.timestamp()
-        return get_collection(self.provider.session, self.path).modify_time.timestamp()
-        # return self._data_obj().modify_time.timestamp()
+            return self.path.dataobject.modify_time.timestamp()
+        return self.path.collection.modify_time.timestamp()
 
     @retry_decorator
     def size(self) -> int:
         # return the size in bytes
-        return get_dataobject(self.provider.session, self.path).size
+        return self.path.size
 
     @retry_decorator
     def retrieve_object(self):
         download(self.provider.session, self.path, self.local_path())
-        # Ensure that the object is accessible locally under self.local_path()
-        # opts = {kw.FORCE_FLAG_KW: ""}
-        # try:
-        #     # is directory
-        #     collection = self.provider.session.collections.get(str(self.path))
-        #     for _, _, objs in collection.walk():
-        #         for obj in objs:
-        #             self.provider.session.data_objects.get(
-        #                 obj.path, str(self.local_path() / obj.path), options=opts
-        #             )
-        # except CollectionDoesNotExist:
-        #     # is file
-        #     self.provider.session.data_objects.get(
-        #         str(self.path), str(self.local_path()), options=opts
-        #     )
 
     # The following to methods are only required if the class inherits from
     # StorageObjectReadWrite.
@@ -307,36 +271,12 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
     @retry_decorator
     def store_object(self):
         upload(self.provider.session, self.local_path(), self.path, overwrite=True)
-        # Ensure that the object is stored at the location specified by
-        # self.local_path().
-        # def mkdir(path):
-        #     try:
-        #         self.provider.session.collections.get(path)
-        #     except CAT_NO_ACCESS_PERMISSION:
-        #         pass
-        #     except CollectionDoesNotExist:
-        #         self.provider.session.collections.create(path)
 
-        # for parent in self.path.parents[:-2][::-1]:
-        #     mkdir(str(parent))
-
-        # if self.local_path().is_dir():
-        #     mkdir(str(self.path))
-        #     for f in self.local_path().iterdir():
-        #         self.provider.session.data_objects.put(str(f), str(self.path / f.name))
-        # else:
-        #     self.provider.session.data_objects.put(
-        #         str(self.local_path()), str(self.path)
-        #     )
 
     @retry_decorator
     def remove(self):
         # Remove the object from the storage.
         self.path.remove()
-        # try:
-        #     self.provider.session.collections.unregister(str(self.path))
-        # except CAT_NAME_EXISTS_AS_DATAOBJ:
-        #     self.provider.session.data_objects.unregister(str(self.path))
 
     # The following to methods are only required if the class inherits from
     # StorageObjectGlob.
@@ -350,13 +290,7 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
         # prefix of the query before the first wildcard.
         return _find_matches(IrodsPath(self.provider.session, self.path),
                              self.path._path.parts)
-        # cur_ipath = IrodsPath(self.provider.session, "/")
-        # for part in self.path._path.parts:
-            # if re.match(r".*{.+}.*", part) is None:
-                # cur_ipath.joinpath(part)
-                # continue
-            
-            
+
     def _convert_time(self, timestamp, tz=None):
         dt = timestamp.replace(tzinfo=datetime.timezone("UTC"))
         if tz:
@@ -392,7 +326,7 @@ def _find_matches(ipath: IrodsPath, remaining_parts: list[str]):# -> list[str]:
     if ipath.dataobject_exists() or not ipath.collection_exists():
         return []
 
-    coll = get_collection(ipath.session, ipath)
+    coll = ipath.collection
     possible_matches = {
         sub.name: sub for sub in coll.data_objects
     }
@@ -416,16 +350,3 @@ def _find_matches(ipath: IrodsPath, remaining_parts: list[str]):# -> list[str]:
     for name in matched_names:
         found_matches.extend(_find_matches(ipath/name, remaining_parts[1:]))
     return found_matches
-    # return [
-            # for name ]
-        
-    # print(regex)
-        # for name, item in possible_matches.items():
-            
-        # possible_matches = {name: item for name, item in possible_matches.items()
-                            # if name.startswith(before_wc)}
-        
-    
-
-    # else:
-        # if 
