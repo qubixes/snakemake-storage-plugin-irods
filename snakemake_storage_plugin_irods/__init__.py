@@ -270,6 +270,9 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
 
     @retry_decorator
     def store_object(self):
+        if not self.path.parent.exists():
+            self.path.parent.create_collection(self.provider.session, self.path.parent)
+
         upload(self.provider.session, self.local_path(), self.path, overwrite=True)
 
 
