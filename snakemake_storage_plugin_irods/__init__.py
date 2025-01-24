@@ -312,19 +312,19 @@ def _next_wildcard(input_str: str) -> tuple[str, Optional[str]]:
     if last_index == -1:
         raise ValueError(f"Bracket not closed properly in: {input_str}")
     return input_str[:next_index], input_str[last_index+1:]
-        
+
 
 def _find_matches(ipath: IrodsPath, remaining_parts: list[str]):# -> list[str]:
     if len(remaining_parts) == 0:
         if ipath.exists():
-            return [str(ipath)]
+            return ["irods:/" + str(ipath)]
         return []
-
 
     part = remaining_parts[0]
     new_ipath = ipath / part
     if re.match(r".*{.+}.*", part) is None:
         return _find_matches(new_ipath, remaining_parts[1:])
+
 
     if ipath.dataobject_exists() or not ipath.collection_exists():
         return []
