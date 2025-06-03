@@ -3,9 +3,10 @@ import datetime
 from typing import Any, Iterable, Optional, List
 from urllib.parse import urlparse
 import re
+import json
 
 
-from ibridges.interactive import interactive_auth
+from ibridges.cli.util import cli_authenticate
 from ibridges import IrodsPath, download, upload
 
 from snakemake_interface_storage_plugins.settings import StorageProviderSettingsBase
@@ -25,12 +26,8 @@ from snakemake_interface_storage_plugins.storage_object import (
 from snakemake_interface_storage_plugins.io import IOCacheStorageInterface
 
 
-env_msg = "Value in ~/.irods/irods_environment.json has higher priority, if present. "
-pswd_msg = (
-    "If no password is provided in the settings or environment file, the"
-    + " password in ~/.irods/.irodsA will be used with native authentication. "
-)
-
+env_msg = "Will also be read from ~/.irods/irods_environment.json if present."
+METADATA_EXT=".metadata.json"
 
 @dataclass
 class StorageProviderSettings(StorageProviderSettingsBase):
@@ -128,7 +125,7 @@ class StorageProvider(StorageProviderBase):
         # This is optional and can be removed if not needed.
         # Alternatively, you can e.g. prepare a connection to your storage backend here.
         # and set additional attributes.
-        self.session = interactive_auth(password=self.settings.password)
+        self.session = cli_authenticate(None)
 
     @classmethod
     def example_queries(cls) -> List[ExampleQuery]:
@@ -197,9 +194,13 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
                                   self.parsed_query.path.lstrip("/"))
         else:
             self.path = IrodsPath(self.provider.session, self.query[7:])
-        # self.path = PosixPath(
-        #     f"/{self.parsed_query.netloc}"
-        # ) / self.parsed_query.path.lstrip("/")
+
+        self.metadata = False
+        self.base_path = self.path
+        if self.path.name.endswith(METADATA_EXT) and self.path.name != METADATA_EXT:
+            self.metadata = True
+            self.base_path = self.path.parent / self.path.name[:-len(METADATA_EXT)]
+
 
     async def inventory(self, cache: IOCacheStorageInterface):
         """From this file, try to find as much existence and modification date
@@ -236,6 +237,10 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
     def exists(self) -> bool:
         # TODO does this also work for collections?
         # return True if the object exists
+        if self.metadata:
+            if not self.base_path.exists():
+                return False
+            return len(self.base_path.meta) > 0
         return self.path.exists()
 
     # def _data_obj(self):
@@ -252,18 +257,28 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
         #         return float(m.value)
         # TODO is this conversion needed? Unix timestamp is always UTC, right?
         # dt = self._convert_time(self._data_obj().modify_time, timezone)
-        if self.path.dataobject_exists():
-            return self.path.dataobject.modify_time.timestamp()
-        return self.path.collection.modify_time.timestamp()
+        ipath = self.path
+        if self.metadata:
+            ipath = self.base_path
+        if ipath.dataobject_exists():
+            return ipath.dataobject.modify_time.timestamp()
+        return ipath.collection.modify_time.timestamp()
 
     @retry_decorator
     def size(self) -> int:
         # return the size in bytes
+        if self.metadata:
+            return len(self.base_path.meta)
         return self.path.size
 
     @retry_decorator
     def retrieve_object(self):
-        download(self.provider.session, self.path, self.local_path())
+        if self.metadata:
+            meta_dict = self.base_path.meta.to_dict()
+            with open(self.local_path(), "w") as handle:
+                json.dump(meta_dict["metadata"], handle)
+        else:
+            download(self.provider.session, self.path, self.local_path())
 
     # The following to methods are only required if the class inherits from
     # StorageObjectReadWrite.
@@ -273,13 +288,20 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
         if not self.path.parent.exists():
             self.path.parent.create_collection(self.provider.session, self.path.parent)
 
-        upload(self.provider.session, self.local_path(), self.path, overwrite=True)
-
+        if self.metadata:
+            with open(self.local_path(), "r") as handle:
+                meta_dict = json.load(handle)
+            self.base_path.meta.from_dict({"metadata": meta_dict})
+        else:
+            upload(self.provider.session, self.local_path(), self.path, overwrite=True)
 
     @retry_decorator
     def remove(self):
         # Remove the object from the storage.
-        self.path.remove()
+        if self.metadata:
+            self.base_path.meta.clear()
+        else:
+            self.path.remove()
 
     # The following to methods are only required if the class inherits from
     # StorageObjectGlob.
