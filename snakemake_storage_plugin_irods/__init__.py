@@ -8,6 +8,7 @@ import json
 
 from ibridges.cli.util import cli_authenticate
 from ibridges import IrodsPath, download, upload
+from ibridges.exception import DoesNotExistError
 
 from snakemake_interface_storage_plugins.settings import StorageProviderSettingsBase
 from snakemake_interface_storage_plugins.storage_provider import (  # noqa: F401
@@ -237,11 +238,21 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
     def exists(self) -> bool:
         # TODO does this also work for collections?
         # return True if the object exists
-        if self.metadata:
-            if not self.base_path.exists():
-                return False
-            return len(self.base_path.meta) > 0
-        return self.path.exists()
+        print(self.path, self.metadata)
+        # print(self.base_path, self.base_path.exists())
+        try:
+            if self.metadata:
+                if not self.base_path.exists():
+                    print("Return", False)
+                    return False
+                print("Return", len(self.base_path.meta) > 0)
+                return len(self.base_path.meta) > 0
+
+            print("Return", self.path.exists())
+            return self.path.exists()
+        except DoesNotExistError:
+            print("Return", self.path.exists())
+            return False
 
     # def _data_obj(self):
         # return 
