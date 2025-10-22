@@ -141,10 +141,10 @@ class StorageProvider(StorageProviderBase):
         # This is optional and can be removed if not needed.
         # Alternatively, you can e.g. prepare a connection to your storage backend here.
         # and set additional attributes.
-        if self.environment_file is not None:
-            self.session = Session(self.irods_environment, self.password, self.home, self.cwd)
+        if self.settings.environment_file is not None:
+            self.session = Session(self.settings.environment_file, self.settings.password, self.settings.home,
+                                   self.settings.cwd)
         else:
-            
             self.session = cli_authenticate(None)
 
     @classmethod
