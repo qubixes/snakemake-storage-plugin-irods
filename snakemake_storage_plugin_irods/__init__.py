@@ -294,7 +294,7 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
             with open(self.local_path(), "w") as handle:
                 json.dump(meta_dict["metadata"], handle)
         else:
-            download(self.provider.session, self.path, self.local_path())
+            download(self.path, self.local_path())
 
     # The following to methods are only required if the class inherits from
     # StorageObjectReadWrite.
@@ -309,7 +309,7 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
                 meta_dict = json.load(handle)
             self.base_path.meta.from_dict({"metadata": meta_dict})
         else:
-            upload(self.provider.session, self.local_path(), self.path, overwrite=True)
+            upload(self.local_path(), self.path, overwrite=True)
 
     @retry_decorator
     def remove(self):
