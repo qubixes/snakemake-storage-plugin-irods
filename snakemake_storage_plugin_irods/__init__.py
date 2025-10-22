@@ -7,7 +7,7 @@ import json
 
 
 from ibridges.cli.util import cli_authenticate
-from ibridges import IrodsPath, download, upload
+from ibridges import IrodsPath, download, upload, Session
 from ibridges.exception import DoesNotExistError
 
 from snakemake_interface_storage_plugins.settings import StorageProviderSettingsBase
@@ -27,18 +27,17 @@ from snakemake_interface_storage_plugins.storage_object import (
 from snakemake_interface_storage_plugins.io import IOCacheStorageInterface
 
 
-env_msg = "Will also be read from ~/.irods/irods_environment.json if present."
+# env_msg = "Will also be read from ~/.irods/irods_environment.json if present."
 METADATA_EXT=".metadata.json"
 
 @dataclass
 class StorageProviderSettings(StorageProviderSettingsBase):
-    pass
     # host: Optional[str] = field(
     #     default=None,
     #     metadata={
     #         "help": f"The host name of the iRODS server. {env_msg}",
     #         "env_var": False,
-    #         "required": True,
+    #         "required": False,
     #     },
     # )
     # port: Optional[int] = field(
@@ -46,7 +45,7 @@ class StorageProviderSettings(StorageProviderSettingsBase):
     #     metadata={
     #         "help": f"The port of the iRODS server. {env_msg}",
     #         "env_var": False,
-    #         "required": True,
+    #         "required": False,
     #     },
     # )
     # username: Optional[str] = field(
@@ -54,39 +53,55 @@ class StorageProviderSettings(StorageProviderSettingsBase):
     #     metadata={
     #         "help": f"The user name for the iRODS server. {env_msg}",
     #         "env_var": True,
-    #         "required": True,
+    #         "required": False,
     #     },
     # )
     password: Optional[str] = field(
         default=None,
         metadata={
-            "help": f"The password for the iRODS server. {env_msg}",
+            "help": "The password for the iRODS server.",
             "env_var": True,
             "required": False,
         },
+    )
+    environment_file: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "iRODS environment file to use for authentication",
+            "env_var": True,
+            "required": False,
+        }
     )
     # zone: Optional[str] = field(
     #     default=None,
     #     metadata={
     #         "help": f"The zone for the iRODS server. {env_msg}",
     #         "env_var": False,
-    #         "required": True,
+    #         "required": False,
     #     },
     # )
-    # home: Optional[str] = field(
-    #     default=None,
-    #     metadata={
-    #         "help": f"The home parameter for the iRODS server. {env_msg}",
-    #         "env_var": False,
-    #         "required": True,
-    #     },
-    # )
+    home: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "The home parameter for the iRODS server.",
+            "env_var": False,
+            "required": False,
+        },
+    )
+    cwd: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "The current working directory on the iRODS server.",
+            "env_var": True,
+            "required": False,
+        }
+    )
     # authentication_scheme: str = field(
     #     default="native",
     #     metadata={
     #         "help": f"The authentication scheme for the iRODS server. {env_msg}",
     #         "env_var": False,
-    #         "required": True,
+    #         "required": False,
     #     },
     # )
 
@@ -126,7 +141,11 @@ class StorageProvider(StorageProviderBase):
         # This is optional and can be removed if not needed.
         # Alternatively, you can e.g. prepare a connection to your storage backend here.
         # and set additional attributes.
-        self.session = cli_authenticate(None)
+        if self.environment_file is not None:
+            self.session = Session(self.irods_environment, self.password, self.home, self.cwd)
+        else:
+            
+            self.session = cli_authenticate(None)
 
     @classmethod
     def example_queries(cls) -> List[ExampleQuery]:
@@ -194,14 +213,17 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
             self.path = IrodsPath(self.provider.session, self.parsed_query.netloc,
                                   self.parsed_query.path.lstrip("/"))
         else:
+            # Remove irods:/ from the path
             self.path = IrodsPath(self.provider.session, self.query[7:])
 
-        self.metadata = False
-        self.base_path = self.path
+        # Handle files with .metadata.json extensions differently.
+        # The base_path is the path to the data_object/collection.
         if self.path.name.endswith(METADATA_EXT) and self.path.name != METADATA_EXT:
             self.metadata = True
             self.base_path = self.path.parent / self.path.name[:-len(METADATA_EXT)]
-
+        else:
+            self.metadata = False
+            self.base_path = self.path
 
     async def inventory(self, cache: IOCacheStorageInterface):
         """From this file, try to find as much existence and modification date
@@ -236,31 +258,21 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
     # provided by snakemake-interface-storage-plugins.
     @retry_decorator
     def exists(self) -> bool:
-        # TODO does this also work for collections?
-        # return True if the object exists
         try:
+            # Check whether the metadata exists for the base path
             if self.metadata:
                 if not self.base_path.exists():
                     return False
                 return len(self.base_path.meta) > 0
+
+            # Otherwise check whether the collection/data object exists
             return self.path.exists()
         except DoesNotExistError:
             return False
 
-    # def _data_obj(self):
-        # return 
-        # return self.provider.session.data_objects.get(str(self.path))
-
     @retry_decorator
     def mtime(self) -> float:
-        # TODO does this also work for collections (i.e. directories)?
-        # return the modification time
-        # meta = self.provider.session.metadata.get(DataObject, str(self.path))
-        # for m in meta:
-        #     if m.name == "mtime":
-        #         return float(m.value)
         # TODO is this conversion needed? Unix timestamp is always UTC, right?
-        # dt = self._convert_time(self._data_obj().modify_time, timezone)
         ipath = self.path
         if self.metadata:
             ipath = self.base_path
@@ -290,7 +302,7 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
     @retry_decorator
     def store_object(self):
         if not self.path.parent.exists():
-            self.path.parent.create_collection(self.provider.session, self.path.parent)
+            self.path.parent.create_collection()
 
         if self.metadata:
             with open(self.local_path(), "r") as handle:
