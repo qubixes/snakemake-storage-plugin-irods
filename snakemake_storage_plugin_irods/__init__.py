@@ -32,30 +32,6 @@ METADATA_EXT=".metadata.json"
 
 @dataclass
 class StorageProviderSettings(StorageProviderSettingsBase):
-    # host: Optional[str] = field(
-    #     default=None,
-    #     metadata={
-    #         "help": f"The host name of the iRODS server. {env_msg}",
-    #         "env_var": False,
-    #         "required": False,
-    #     },
-    # )
-    # port: Optional[int] = field(
-    #     default=None,
-    #     metadata={
-    #         "help": f"The port of the iRODS server. {env_msg}",
-    #         "env_var": False,
-    #         "required": False,
-    #     },
-    # )
-    # username: Optional[str] = field(
-    #     default=None,
-    #     metadata={
-    #         "help": f"The user name for the iRODS server. {env_msg}",
-    #         "env_var": True,
-    #         "required": False,
-    #     },
-    # )
     password: Optional[str] = field(
         default=None,
         metadata={
@@ -72,14 +48,7 @@ class StorageProviderSettings(StorageProviderSettingsBase):
             "required": False,
         }
     )
-    # zone: Optional[str] = field(
-    #     default=None,
-    #     metadata={
-    #         "help": f"The zone for the iRODS server. {env_msg}",
-    #         "env_var": False,
-    #         "required": False,
-    #     },
-    # )
+
     home: Optional[str] = field(
         default=None,
         metadata={
@@ -96,33 +65,6 @@ class StorageProviderSettings(StorageProviderSettingsBase):
             "required": False,
         }
     )
-    # authentication_scheme: str = field(
-    #     default="native",
-    #     metadata={
-    #         "help": f"The authentication scheme for the iRODS server. {env_msg}",
-    #         "env_var": False,
-    #         "required": False,
-    #     },
-    # )
-
-    # def __post_init__(self):
-    #     env_file = PosixPath(os.path.expanduser("~/.irods/irods_environment.json"))
-    #     if env_file.exists():
-    #         with open(env_file) as f:
-    #             env = json.load(f)
-
-    #         def retrieve(src, trgt):
-    #             if getattr(self, trgt) is None:
-    #                 setattr(self, trgt, env[src])
-
-    #         retrieve("irods_host", "host")
-    #         retrieve("irods_port", "port")
-    #         retrieve("irods_user_name", "username")
-    #         retrieve("irods_password", "password")
-    #         retrieve("irods_zone_name", "zone")
-    #         retrieve("irods_authentication_scheme", "authentication_scheme")
-    #         retrieve("irods_home", "home")
-
 
 utc = datetime.datetime.fromtimestamp(0, datetime.timezone.utc)
 
