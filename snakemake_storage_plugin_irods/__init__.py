@@ -308,7 +308,7 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
         # Use snakemake_executor_plugins.io.get_constant_prefix(self.query) to get the
         # prefix of the query before the first wildcard.
         return _find_matches(IrodsPath(self.provider.session, self.path),
-                             self.path._path.parts)
+                             self.path.parts)
 
     def _convert_time(self, timestamp, tz=None):
         dt = timestamp.replace(tzinfo=datetime.timezone("UTC"))
