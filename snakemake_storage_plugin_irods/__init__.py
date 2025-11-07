@@ -5,10 +5,10 @@ from urllib.parse import urlparse
 import re
 import json
 
-
-from ibridges.cli.util import cli_authenticate
+from ibridges.cli.config import IbridgesConf
 from ibridges import IrodsPath, download, upload, Session
 from ibridges.exception import DoesNotExistError
+from ibridges.interactive import DEFAULT_IRODSA_PATH
 
 from snakemake_interface_storage_plugins.settings import StorageProviderSettingsBase
 from snakemake_interface_storage_plugins.storage_provider import (  # noqa: F401
@@ -29,6 +29,39 @@ from snakemake_interface_storage_plugins.io import IOCacheStorageInterface
 
 # env_msg = "Will also be read from ~/.irods/irods_environment.json if present."
 METADATA_EXT=".metadata.json"
+
+class ValueErrorParser():
+    """For raising value errors instead of ArgumentParser errors.
+    
+    IbridgesConf is a class normally used for the command line interface (CLI).
+    This ensures that errors normally passed to the argument parser, will be
+    
+    """
+    def error(msg: str):
+        raise ValueError(msg)
+
+def _non_interactive_auth(settings):
+    # iBridges doesn't have a non-interactive auth, so make one.
+    ibridges_conf = IbridgesConf(ValueErrorParser())
+    ienv_path, ienv_entry = ibridges_conf.get_entry()
+    irodsa_backup = ienv_entry.get("irodsa_backup", None)
+    cwd = ienv_entry.get("cwd", None)
+    cwd = cwd if settings.cwd is None else settings.cwd
+    if irodsa_backup is not None:
+        with open(DEFAULT_IRODSA_PATH, "w", encoding="utf-8") as handle:
+            handle.write(irodsa_backup)
+
+    return Session(ienv_path, settings.password, settings.home, cwd)
+
+
+def _switch_password(environment_file):
+    """Write the password file .irodsA if a cached password is available to the CLI."""
+    ibridges_conf = IbridgesConf(ValueErrorParser())
+    _, ienv_entry = ibridges_conf.get_entry(environment_file)
+    irodsa_backup = ienv_entry.get("irodsa_backup", None)
+    if irodsa_backup is not None:
+        with open(DEFAULT_IRODSA_PATH, "w", encoding="utf-8") as handle:
+            handle.write(irodsa_backup)
 
 @dataclass
 class StorageProviderSettings(StorageProviderSettingsBase):
@@ -84,10 +117,13 @@ class StorageProvider(StorageProviderBase):
         # Alternatively, you can e.g. prepare a connection to your storage backend here.
         # and set additional attributes.
         if self.settings.environment_file is not None:
+            if self.settings.password is None:
+                # Attempt to get password from CLI config file.
+                _switch_password(self.settings.environment_file)
             self.session = Session(self.settings.environment_file, self.settings.password, self.settings.home,
                                    self.settings.cwd)
         else:
-            self.session = cli_authenticate(None)
+            self.session = _non_interactive_auth(self.settings)
 
     @classmethod
     def example_queries(cls) -> List[ExampleQuery]:
@@ -151,7 +187,7 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
         # Alternatively, you can e.g. prepare a connection to your storage backend here.
         # and set additional attributes.
         self.parsed_query = urlparse(self.query)
-        if self.parsed_query.netloc == "~":
+        if self.parsed_query.netloc in ["~", "."]:
             self.path = IrodsPath(self.provider.session, self.parsed_query.netloc,
                                   self.parsed_query.path.lstrip("/"))
         else:
