@@ -324,7 +324,7 @@ def _next_wildcard(input_str: str) -> tuple[str, Optional[str]]:
     if next_index < len(input_str)-1 and input_str[next_index+1] == "{":
         new_input_str, remaining_str = _next_wildcard(input_str[next_index+2:])
         return input_str[:next_index+2] + new_input_str, remaining_str
-    last_index = input_str.find("}")
+    last_index = input_str.find("}", next_index+1)
     if last_index == -1:
         raise ValueError(f"Bracket not closed properly in: {input_str}")
     return input_str[:next_index], input_str[last_index+1:]
