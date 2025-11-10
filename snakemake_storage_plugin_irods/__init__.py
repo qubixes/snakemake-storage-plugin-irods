@@ -1,5 +1,7 @@
+import contextlib
 from dataclasses import dataclass, field
 import datetime
+import os
 from typing import Any, Iterable, Optional, List
 from urllib.parse import urlparse
 import re
@@ -40,6 +42,22 @@ class ValueErrorParser():
     def error(self, msg: str):
         raise ValueError(msg)
 
+# Copied from python-irodsclient: client_init.py f700ab5
+@contextlib.contextmanager
+def _open_irodsa(file_path, *arg, **kw):
+    """Open a file with 0o600 file permissions generally."""
+    f = old_mask = None
+    try:
+        old_mask = os.umask(0o77)
+        f = open(file_path, *arg, **kw)
+        yield f
+    finally:
+        if old_mask is not None:
+            os.umask(old_mask)
+        if f is not None:
+            f.close()
+
+
 def _non_interactive_auth(settings):
     # iBridges doesn't have a non-interactive auth, so make one.
     ibridges_conf = IbridgesConf(ValueErrorParser())
@@ -48,7 +66,7 @@ def _non_interactive_auth(settings):
     cwd = ienv_entry.get("cwd", None)
     cwd = cwd if settings.cwd is None else settings.cwd
     if irodsa_backup is not None:
-        with open(DEFAULT_IRODSA_PATH, "w", encoding="utf-8") as handle:
+        with _open_irodsa(DEFAULT_IRODSA_PATH, "w", encoding="utf-8") as handle:
             handle.write(irodsa_backup)
 
     return Session(ienv_path, settings.password, settings.home, cwd)
@@ -60,8 +78,9 @@ def _switch_password(environment_file):
     _, ienv_entry = ibridges_conf.get_entry(environment_file)
     irodsa_backup = ienv_entry.get("irodsa_backup", None)
     if irodsa_backup is not None:
-        with open(DEFAULT_IRODSA_PATH, "w", encoding="utf-8") as handle:
+        with _open_irodsa(DEFAULT_IRODSA_PATH, "w", encoding="utf-8") as handle:
             handle.write(irodsa_backup)
+
 
 @dataclass
 class StorageProviderSettings(StorageProviderSettingsBase):
