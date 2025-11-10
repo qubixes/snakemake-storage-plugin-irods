@@ -37,7 +37,7 @@ class ValueErrorParser():
     This ensures that errors normally passed to the argument parser, will be
     
     """
-    def error(msg: str):
+    def error(self, msg: str):
         raise ValueError(msg)
 
 def _non_interactive_auth(settings):
