@@ -260,9 +260,11 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
 
     @retry_decorator
     def size(self) -> int:
-        # return the size in bytes
+        # Return the number of metadata items
         if self.metadata:
             return len(self.base_path.meta)
+
+        # return the size in bytes
         return self.path.size
 
     @retry_decorator
