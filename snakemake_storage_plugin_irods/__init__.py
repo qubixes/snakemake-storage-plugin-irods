@@ -325,8 +325,7 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
         # The method has to return concretized queries without any remaining wildcards.
         # Use snakemake_executor_plugins.io.get_constant_prefix(self.query) to get the
         # prefix of the query before the first wildcard.
-        return _find_matches(IrodsPath(self.provider.session, self.path),
-                             self.path.parts)
+        return _find_matches(self.path, self.path.parts)
 
 def _next_wildcard(input_str: str) -> tuple[str, Optional[str]]:
     next_index = input_str.find("{")
