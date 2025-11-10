@@ -118,9 +118,6 @@ class StorageProviderSettings(StorageProviderSettingsBase):
         }
     )
 
-utc = datetime.datetime.fromtimestamp(0, datetime.timezone.utc)
-
-
 # Required:
 # Implementation of your storage provider
 # This class can be empty as the one below.
