@@ -310,13 +310,6 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
         return _find_matches(IrodsPath(self.provider.session, self.path),
                              self.path.parts)
 
-    def _convert_time(self, timestamp, tz=None):
-        dt = timestamp.replace(tzinfo=datetime.timezone("UTC"))
-        if tz:
-            dt = dt.astimezone(datetime.timezone(tz))
-        return dt
-
-
 def _next_wildcard(input_str: str) -> tuple[str, Optional[str]]:
     next_index = input_str.find("{")
     if next_index == -1:
