@@ -9,7 +9,7 @@ import json
 
 from ibridges.cli.config import IbridgesConf
 from ibridges import IrodsPath, download, upload, Session
-from ibridges.exception import DoesNotExistError
+from ibridges.exception import DoesNotExistError, PasswordError
 from ibridges.interactive import DEFAULT_IRODSA_PATH
 
 from snakemake_interface_storage_plugins.settings import StorageProviderSettingsBase
@@ -80,7 +80,7 @@ def _switch_password(environment_file):
     if irodsa_backup is not None:
         with _open_irodsa(DEFAULT_IRODSA_PATH, "w", encoding="utf-8") as handle:
             handle.write(irodsa_backup)
-
+        
 
 @dataclass
 class StorageProviderSettings(StorageProviderSettingsBase):
@@ -132,14 +132,21 @@ class StorageProvider(StorageProviderBase):
         # This is optional and can be removed if not needed.
         # Alternatively, you can e.g. prepare a connection to your storage backend here.
         # and set additional attributes.
-        if self.settings.environment_file is not None:
-            if self.settings.password is None:
-                # Attempt to get password from CLI config file.
-                _switch_password(self.settings.environment_file)
-            self.session = Session(self.settings.environment_file, self.settings.password, self.settings.home,
-                                   self.settings.cwd)
-        else:
-            self.session = _non_interactive_auth(self.settings)
+        try:
+            if self.settings.environment_file is not None:
+                if self.settings.password is None:
+                    # Attempt to get password from CLI config file.
+                    _switch_password(self.settings.environment_file)
+                self.session = Session(self.settings.environment_file, self.settings.password, self.settings.home,
+                                    self.settings.cwd)
+            else:
+                self.session = _non_interactive_auth(self.settings)
+        except PasswordError as exc:
+            raise PasswordError(
+                "Failed to authenticate. Set or supply the password directly or"
+                " authenticate once using the current/currently used irods environment file,"
+                " which would cache the password depending on your authentication method."
+            ) from exc
 
     @classmethod
     def example_queries(cls) -> List[ExampleQuery]:
@@ -340,7 +347,7 @@ def _next_wildcard(input_str: str) -> tuple[str, Optional[str]]:
     return input_str[:next_index], input_str[last_index+1:]
 
 
-def _find_matches(ipath: IrodsPath, remaining_parts: list[str]):# -> list[str]:
+def _find_matches(ipath: IrodsPath, remaining_parts: list[str]) -> list[str]:
     if len(remaining_parts) == 0:
         if ipath.exists():
             return ["irods:/" + str(ipath)]
@@ -366,7 +373,7 @@ def _find_matches(ipath: IrodsPath, remaining_parts: list[str]):# -> list[str]:
     cur_part = part
     while True:
         before_wc, after_wc = _next_wildcard(cur_part)
-        regex += before_wc
+        regex += re.escape(before_wc)
         if after_wc is None:
             break
         regex += r"[\S\s]+"
