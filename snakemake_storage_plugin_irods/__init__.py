@@ -29,17 +29,17 @@ from snakemake_interface_storage_plugins.storage_object import (
 from snakemake_interface_storage_plugins.io import IOCacheStorageInterface
 
 
-# env_msg = "Will also be read from ~/.irods/irods_environment.json if present."
-METADATA_EXT=".metadata.json"
+METADATA_EXT = ".metadata.json"
 
 class ValueErrorParser():
     """For raising value errors instead of ArgumentParser errors.
-    
+
     IbridgesConf is a class normally used for the command line interface (CLI).
-    This ensures that errors normally passed to the argument parser, will be
-    
+    This ensures that errors normally passed to the argument parser, will be raised as ValueErrors instead.
+
     """
     def error(self, msg: str):
+        """Raise error message."""
         raise ValueError(msg)
 
 # Copied from python-irodsclient: client_init.py f700ab5
@@ -191,7 +191,8 @@ class StorageProvider(StorageProviderBase):
                 valid=False,
                 query=query,
                 reason="Query does not start with irods://, starts with irods:/// or does not "
-                "contain a path to a file or directory.",
+                "contain a path to a file or directory. Examples of valid queries: " 
+                "irods://an/absolute/path, irods://./a/relative/path, irods://~/a/relative/path/to/home.",
             )
 
 
