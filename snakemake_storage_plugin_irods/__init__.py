@@ -184,13 +184,13 @@ class StorageProvider(StorageProviderBase):
         # and considered valid. The wildcards will be resolved before the storage
         # object is actually used.
         parsed = urlparse(query)
-        if parsed.scheme == "irods" and parsed.path:
+        if parsed.scheme == "irods" and parsed.path and parsed.netloc:
             return StorageQueryValidationResult(valid=True, query=query)
         else:
             return StorageQueryValidationResult(
                 valid=False,
                 query=query,
-                reason="Query does not start with irods:// or does not "
+                reason="Query does not start with irods://, starts with irods:/// or does not "
                 "contain a path to a file or directory.",
             )
 
@@ -210,12 +210,11 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
         # Alternatively, you can e.g. prepare a connection to your storage backend here.
         # and set additional attributes.
         self.parsed_query = urlparse(self.query)
-        if self.parsed_query.netloc in ["~", "."]:
-            self.path = IrodsPath(self.provider.session, self.parsed_query.netloc,
-                                  self.parsed_query.path.lstrip("/"))
-        else:
-            # Remove irods:/ from the path
-            self.path = IrodsPath(self.provider.session, self.query[7:])
+
+        # Determine the root, whether it's absolute or relative
+        root = "" if self.parsed_query.netloc in ["~", "."] else "/"
+        self.path = IrodsPath(self.provider.session, root, self.parsed_query.netloc,
+                              self.parsed_query.path.lstrip("/"))
 
         # Handle files with .metadata.json extensions differently.
         # The base_path is the path to the data_object/collection.
