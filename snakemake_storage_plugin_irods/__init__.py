@@ -185,7 +185,6 @@ class StorageProvider(StorageProviderBase):
         # and considered valid. The wildcards will be resolved before the storage
         # object is actually used.
         parsed = urlparse(query)
-        # print(parsed.scheme, parsermd.path, parsed.netloc)
         if parsed.scheme == "irods" and parsed.path:
             return StorageQueryValidationResult(valid=True, query=query)
         else:
