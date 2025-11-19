@@ -9,7 +9,8 @@ import json
 
 from ibridges.cli.config import IbridgesConf
 from ibridges import IrodsPath, download, upload, Session
-from ibridges.exception import DoesNotExistError, PasswordError
+from ibridges.exception import DoesNotExistError
+from ibridges.session import PasswordError
 from ibridges.interactive import DEFAULT_IRODSA_PATH
 
 from snakemake_interface_storage_plugins.settings import StorageProviderSettingsBase
@@ -184,7 +185,8 @@ class StorageProvider(StorageProviderBase):
         # and considered valid. The wildcards will be resolved before the storage
         # object is actually used.
         parsed = urlparse(query)
-        if parsed.scheme == "irods" and parsed.path and parsed.netloc:
+        # print(parsed.scheme, parsermd.path, parsed.netloc)
+        if parsed.scheme == "irods" and parsed.path:
             return StorageQueryValidationResult(valid=True, query=query)
         else:
             return StorageQueryValidationResult(
@@ -213,8 +215,9 @@ class StorageObject(StorageObjectRead, StorageObjectWrite, StorageObjectGlob):
         self.parsed_query = urlparse(self.query)
 
         # Determine the root, whether it's absolute or relative
-        root = "" if self.parsed_query.netloc in ["~", "."] else "/"
-        self.path = IrodsPath(self.provider.session, root, self.parsed_query.netloc,
+        # root = "" if self.parsed_query.netloc in ["~", "."] else "/"
+        netloc = self.parsed_query.netloc if self.parsed_query.netloc else "/"
+        self.path = IrodsPath(self.provider.session, netloc,
                               self.parsed_query.path.lstrip("/"))
 
         # Handle files with .metadata.json extensions differently.
